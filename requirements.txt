@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+pydantic>=2
+langchain
+langchain-community
+langchain-text-splitters
+langchain-elasticsearch
+unstructured
+elasticsearch>=8.13
+python-magic
+tqdm
+python-multipart
+sentence-transformers
+langchain-huggingface
+unstructured[all-docs]
+langchain-unstructured
