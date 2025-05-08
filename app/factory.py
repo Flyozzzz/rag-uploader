@@ -10,7 +10,7 @@ from elasticsearch import Elasticsearch
 from importlib import import_module
 from typing import Any
 from langchain_text_splitters.base import TextSplitter
-from app.config import UploadCfg
+from app.config import UploadCfg, QueryCfg
 import tempfile, pathlib
 
 def build_loader(path: str, cfg: UploadCfg):
@@ -108,3 +108,17 @@ def build_vectorstore(docs, embeddings, es_conn: Elasticsearch, cfg: UploadCfg):
         # strategy=ElasticsearchStore.ApproxRetrievalStrategy(),  # default
         bulk_kwargs={"chunk_size": 1000}
     )
+
+def build_retriever(vs, cfg: QueryCfg):
+    """Return a LangChain retriever with the requested search strategy."""
+    mapping = {
+        "similarity": "similarity",
+        "mmr": "mmr",
+        "script_score": "script_score",
+        "keyword": "similarity_score",
+    }
+    search_type = mapping.get(cfg.search_type, cfg.search_type)
+    kwargs = {"k": cfg.k, **cfg.retriever_kwargs}
+    if cfg.score_threshold is not None:
+        kwargs["score_threshold"] = cfg.score_threshold
+    return vs.as_retriever(search_type=search_type, search_kwargs=kwargs)

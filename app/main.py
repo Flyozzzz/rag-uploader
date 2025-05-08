@@ -1,9 +1,17 @@
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import JSONResponse
-import json, shutil, tempfile, pathlib, uuid, os
-from app.config import UploadCfg
-from app.factory import build_loader, build_splitter, build_embeddings, build_es_client, build_vectorstore
-import uvicorn
+import json, shutil, tempfile, pathlib, os
+from app.config import UploadCfg, QueryCfg
+from app.factory import (
+    build_loader,
+    build_splitter,
+    build_embeddings,
+    build_es_client,
+    build_vectorstore,
+    build_retriever,
+)
+from langchain_elasticsearch import ElasticsearchStore
+from langchain.schema import Document
 app = FastAPI(title="Generic RAG Uploader API")
 
 @app.get("/health")
@@ -55,4 +63,47 @@ async def upload(files: list[UploadFile] = File(...),
         "uploaded_files": len(files),
         "docs": total_docs,
         "chunks": total_chunks
+    }
+
+
+@app.post("/query")
+async def rag_query(config: str = Form(...)):
+    """Run a RAG search and return matched chunks."""
+    try:
+        cfg = QueryCfg(**json.loads(config))
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Bad config: {e}"})
+
+    # 1. build shared components
+    es_client  = build_es_client(cfg)
+    embeddings = build_embeddings(cfg)
+
+    # 2. wrap existing index (no writes)
+    vs = ElasticsearchStore(
+        index_name   = cfg.index_name,
+        es_client    = es_client,
+        embedding    = embeddings,
+        vector_field = cfg.vector_field,
+        dims         = cfg.dims,
+    )
+
+    retriever = build_retriever(vs, cfg)
+
+    # 3. fetch docs (LangChain ≥0.1 uses .invoke)
+    try:
+        docs: list[Document] = retriever.invoke(cfg.query)
+    except AttributeError:
+        docs = retriever.get_relevant_documents(cfg.query)
+
+    # 4. JSON‑serialisable response
+    return {
+        "query": cfg.query,
+        "matches": [
+            {
+                "content":  d.page_content,
+                "score":    d.metadata.get("score"),
+                "metadata": {k: v for k, v in d.metadata.items() if k != "score"},
+            }
+            for d in docs
+        ],
     }

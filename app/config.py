@@ -34,3 +34,24 @@ class UploadCfg(BaseModel):
     metadata:        Dict[str, Any] = Field(default_factory=dict)
     vector_field:    str = "embedding"
     distance: str | None = "COSINE"
+
+
+class QueryCfg(BaseModel):
+    """Schema for the `/query` endpoint."""
+
+    query: str = Field(..., description="Natural‑language query to answer")
+    index_name: str
+
+    search_type: str = Field(
+        "similarity",
+        examples=["similarity", "mmr", "script_score", "keyword"],
+    )
+    k: int = 4
+    score_threshold: Optional[float] = None
+    retriever_kwargs: Dict[str, Any] = Field(default_factory=dict)
+
+    embedding: EmbeddingCfg
+    elasticsearch: ESAuth
+
+    vector_field: str = "embedding"
+    dims: Optional[int] = None

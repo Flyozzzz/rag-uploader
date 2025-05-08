@@ -244,7 +244,7 @@ vs = ElasticsearchStore.from_documents(
 ---
 
 ## Примеры запросов
-
+## Загрузка документов в RAG:
 ### cURL
 
 ```bash
@@ -267,7 +267,50 @@ with open("analytics.pdf", "rb") as f:
     )
 print(r.json())
 ```
+### cURL
 
+## Запрос в RAG:
+```bash
+curl -X POST http://localhost:8000/query \
+     -F 'config={
+       "query": "Что такое RAG?",
+       "index_name": "demo-index",
+       "search_type": "mmr",
+       "k": 5,
+       "embedding": {"provider": "huggingface", "model": "intfloat/multilingual-e5-large-instruct"},
+       "elasticsearch": {"hosts": ["http://localhost:9200"]}
+     }'
+```
+
+### Python‑клиент
+
+```python
+import json, requests
+
+url = "http://localhost:8000/query"
+cfg = {
+    "query": "Что такое RAG?",
+    "index_name": "demo-index",
+    "search_type": "mmr",
+    "k": 5,
+    "embedding": {
+        "provider": "huggingface",
+        "model": "intfloat/multilingual-e5-large-instruct",
+    },
+    "elasticsearch": {
+        "hosts": ["http://localhost:9200"],
+    },
+}
+
+# Multipart/form‑data field named "config" (no accompanying file)
+response = requests.post(
+    url,
+    files={"config": (None, json.dumps(cfg))},
+    timeout=30,
+)
+print(response.json())
+
+```
 ---
 
 ## Тестирование
