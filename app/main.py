@@ -81,10 +81,8 @@ async def rag_query(config: str = Form(...)):
     # 2. wrap existing index (no writes)
     vs = ElasticsearchStore(
         index_name   = cfg.index_name,
-        es_client    = es_client,
-        embedding    = embeddings,
-        vector_field = cfg.vector_field,
-        dims         = cfg.dims,
+        es_connection    = es_client,
+        embedding    = embeddings
     )
 
     retriever = build_retriever(vs, cfg)

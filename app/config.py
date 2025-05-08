@@ -54,4 +54,3 @@ class QueryCfg(BaseModel):
     elasticsearch: ESAuth
 
     vector_field: str = "embedding"
-    dims: Optional[int] = None
