@@ -267,7 +267,8 @@ with open("analytics.pdf", "rb") as f:
     )
 print(r.json())
 ```
-### cURL
+
+---
 
 ## Запрос в RAG:
 ```bash
@@ -311,6 +312,7 @@ response = requests.post(
 print(response.json())
 
 ```
+
 ---
 
 ## Тестирование
