@@ -1,6 +1,4 @@
 from langchain_community.document_loaders import UnstructuredFileLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter, \
-                                     CharacterTextSplitter, HTMLHeaderTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
 try:
     from langchain_huggingface import HuggingFaceEmbeddings
@@ -9,22 +7,78 @@ except ModuleNotFoundError:
 
 from langchain_elasticsearch import ElasticsearchStore
 from elasticsearch import Elasticsearch
+from importlib import import_module
+from typing import Any
+from langchain_text_splitters.base import TextSplitter
 from app.config import UploadCfg
 import tempfile, pathlib
 
 def build_loader(path: str, cfg: UploadCfg):
     return UnstructuredFileLoader(path, mode=cfg.loader.mode, **cfg.loader.kwargs)
 
-def build_splitter(cfg: UploadCfg):
-    cls_map = {
-        "RecursiveCharacterTextSplitter": RecursiveCharacterTextSplitter,
-        "CharacterTextSplitter": CharacterTextSplitter,
-        "HTMLHeaderTextSplitter": HTMLHeaderTextSplitter
+_SPLITTER_MODULES = {
+    # Character-based
+    "CharacterTextSplitter": "langchain_text_splitters.character",
+    "RecursiveCharacterTextSplitter": "langchain_text_splitters.character",
+    "TokenTextSplitter": "langchain_text_splitters.base",
+    "SentenceTransformersTokenTextSplitter": "langchain_text_splitters.sentence_transformers",
+
+    # Linguistic
+    "SpacyTextSplitter": "langchain_text_splitters.spacy",
+    "NLTKTextSplitter": "langchain_text_splitters.nltk",
+    "KonlpyTextSplitter": "langchain_text_splitters.konlpy",
+
+    # Documents & code
+    "LatexTextSplitter": "langchain_text_splitters.latex",
+    "PythonCodeTextSplitter": "langchain_text_splitters.python",
+    "JSFrameworkTextSplitter": "langchain_text_splitters.jsx",
+    "RecursiveJsonSplitter": "langchain_text_splitters.json",
+
+    # Markdown / HTML
+    "MarkdownTextSplitter": "langchain_text_splitters.markdown",
+    "ExperimentalMarkdownSyntaxTextSplitter": "langchain_text_splitters.markdown",
+    "MarkdownHeaderTextSplitter": "langchain_text_splitters.markdown",
+    "HTMLHeaderTextSplitter": "langchain_text_splitters.html",
+    "HTMLSectionSplitter": "langchain_text_splitters.html",
+    "HTMLSemanticPreservingSplitter": "langchain_text_splitters.html",
+}
+
+
+def _resolve_splitter(name: str):
+    """Dynamically import class by name."""
+    module_path = _SPLITTER_MODULES.get(name)
+    if not module_path:
+        raise ValueError(f"Unknown splitter '{name}'. "
+                         f"Valid options: {', '.join(_SPLITTER_MODULES)}")
+    module = import_module(module_path)
+    return getattr(module, name)
+
+
+def build_splitter(cfg: UploadCfg) -> Any:
+    """
+    Build any text-splitter from cfg.splitter.type
+    Special-case header splitters that don't accept chunk_* kwargs.
+    """
+    splitter_cls = _resolve_splitter(cfg.splitter.type)
+
+    # Разделители заголовков имеют собственную сигнатуру (без chunk_size/overlap).
+    header_splitters = {
+        "MarkdownHeaderTextSplitter",
+        "HTMLHeaderTextSplitter"
     }
-    cls = cls_map.get(cfg.splitter.type, RecursiveCharacterTextSplitter)
-    return cls(chunk_size=cfg.splitter.chunk_size,
-               chunk_overlap=cfg.splitter.chunk_overlap,
-               **cfg.splitter.kwargs)
+
+    if splitter_cls.__name__ in header_splitters:
+        return splitter_cls(**cfg.splitter.kwargs)
+
+    if issubclass(splitter_cls, TextSplitter):
+        return splitter_cls(
+            chunk_size=cfg.splitter.chunk_size,
+            chunk_overlap=cfg.splitter.chunk_overlap,
+            **cfg.splitter.kwargs,
+        )
+
+    return splitter_cls(**cfg.splitter.kwargs)
+
 
 def build_embeddings(cfg: UploadCfg):
     if cfg.embedding.provider == "openai":

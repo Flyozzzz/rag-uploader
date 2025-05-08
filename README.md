@@ -152,29 +152,61 @@ LLM‑модели ограничены контекстом. Чанки поз�
 
 ### Полный список
 
-| Класс                                    | Назначение               | Особенности                                                  |
-| ---------------------------------------- | ------------------------ | ------------------------------------------------------------ |
-| `RecursiveCharacterTextSplitter`         | Универсальный plain‑text | Рекурсивное деление по «параграф → строка → слово → символ». |
-| `CharacterTextSplitter`                  | Плоский текст            | Быстрый split по фиксированному разделителю.                 |
-| `TokenTextSplitter`                      | Токено‑базовый           | Деление по кол‑ву токенов выбранного токенизатора.           |
-| `SentenceTransformersTokenTextSplitter`  | ST‑модели                | Учитывает true‑tokenizer Sentence‑Transformers.              |
-| `SpacyTextSplitter`                      | Разные языки             | Sentence boundary detection spaCy.                           |
-| `NLTKTextSplitter`                       | Лингвистические тексты   | Sentence tokenize с NLTK.                                    |
-| `KonlpyTextSplitter`                     | Корейский                | Морфемный tokenizer Komoran/Mecab.                           |
-| `LatexTextSplitter`                      | LaTeX                    | Не ломает окружения `\begin{}` / `\end{}`.                   |
-| `PythonCodeTextSplitter`                 | Python‑код               | Учитывает отступы, def/class и docstrings.                   |
-| `JSFrameworkTextSplitter`                | React / Vue / Svelte     | Деление по компонентам JSX/TSX.                              |
-| `HTMLHeaderTextSplitter`                 | HTML с `<h1‑h6>`         | Сохраняет иерархию заголовков.                               |
-| `HTMLSectionSplitter`                    | HTML статьи              | Группирует контент по секциям.                               |
-| `HTMLSemanticPreservingSplitter`         | Сложный HTML             | Не ломает таблицы, списки, медиа.                            |
-| `MarkdownHeaderTextSplitter`             | Markdown + заголовки     | Выделяет секции по `#`.                                      |
-| `MarkdownTextSplitter`                   | Markdown без секц.       | Деление по строкам/символам с учётом списков.                |
-| `ExperimentalMarkdownSyntaxTextSplitter` | MD (beta)                | Тонкая сегментация синтаксиса.                               |
-| `RecursiveJsonSplitter`                  | Большие JSON             | DFS‑обход, сохранение вложенности.                           |
+| Имя                                      | Ключевые параметры¹                                       | Когда применять                                    |
+| ---------------------------------------- | --------------------------------------------------------- | -------------------------------------------------- |
+| `RecursiveCharacterTextSplitter`         | `chunk_size`, `chunk_overlap`, `separators`               | Универсальный: длинные статьи, книги, PDF.         |
+| `CharacterTextSplitter`                  | `chunk_size`, `chunk_overlap`, `separator`                | Однородный текст, логи.                            |
+| `TokenTextSplitter`                      | `tokens_per_chunk`, `chunk_overlap`, `tokenizer`          | Нужен точный контроль LLM‑токенов.                 |
+| `SentenceTransformersTokenTextSplitter`  | `tokens_per_chunk`, `chunk_overlap`, `model_name`         | Счёт токенов через sentence‑transformers.          |
+| `SpacyTextSplitter`                      | `separator`, `pipeline`, `max_length`, `strip_whitespace` | Лингвистическая сегментация предложений (EN/DE/…). |
+| `NLTKTextSplitter`                       | `separator`, `language`                                   | Альтернатива spaCy на NLTK.                        |
+| `KonlpyTextSplitter`                     | `separator`                                               | Корейский язык.                                    |
+| `MarkdownTextSplitter`                   | `chunk_size`, `chunk_overlap`, `markdown_separators`      | README, Jupyter‑ноутбуки.                          |
+| `MarkdownHeaderTextSplitter`             | `headers_to_split_on`                                     | Держит куски внутри заголовков Markdown.           |
+| `ExperimentalMarkdownSyntaxTextSplitter` | `chunk_size`, `chunk_overlap`                             | Учитывает списки/блоки кода в MD.                  |
+| `HTMLHeaderTextSplitter`                 | `headers_to_split_on`, `return_each_element`              | Сохранение структуры `<h1>`‑`<h6>` в HTML.         |
+| `HTMLSectionSplitter`                    | `chunk_size`, `chunk_overlap`                             | Делит по `<section>` и sem‑тегам.                  |
+| `HTMLSemanticPreservingSplitter`         | `chunk_size`, `chunk_overlap`                             | Сохраняет видимые/inline‑теги HTML.                |
+| `RecursiveJsonSplitter`                  | `min_chunk_size`, `max_chunk_size`                        | Большие вложенные JSON.                            |
+| `LatexTextSplitter`                      | `chunk_size`, `chunk_overlap`                             | Научные статьи LaTeX (`\section`, `\subsection`).  |
+| `PythonCodeTextSplitter`                 | `chunk_size`, `chunk_overlap`, `line_split`               | Python‑код: сохраняет функции и классы.            |
+| `JSFrameworkTextSplitter`                | `chunk_size`, `chunk_overlap`, `framework`                | React/Vue/Svelte компоненты.                       |
 
-> **NB:** `MarkdownHeaderTextSplitter` и `HTMLHeaderTextSplitter` не наследуются от `TextSplitter`, но предоставляют тот же API.
+> ¹Все сплиттеры принимают дополнительные `**kwargs`, прокидываемые в базовый `TextSplitter` (например, `keep_separator`, `add_start_index`).
+
+**Установка extras для специфических сплиттеров**
+
+```bash
+pip install langchain-text-splitters[markdown,spacy,nltk,konlpy]
+python -m spacy download en_core_web_sm
+```
 
 ---
+
+#### Подробное описание параметров сплиттеров
+
+| Параметр                            | Тип / допустимые значения      | Где встречается                                              | Для чего нужен                                                                                                     |
+| ----------------------------------- |--------------------------------| ------------------------------------------------------------ |--------------------------------------------------------------------------------------------------------------------|
+| `chunk_size`                        | `int > 0` (символы)            | Все `*TextSplitter`, кроме header‑сплиттеров                 | Максимальная длина одного куска. Чем больше, тем меньше эмбеддингов‑запросов, но выше риск превысить контекст LLM. |
+| `chunk_overlap`                     | `int ≥ 0`                      | Все `*TextSplitter`, кроме header‑сплиттеров                 | Перекрытие соседних чанков, чтобы не рвать смысл на границе. Обычно 10‑25 % от `chunk_size`.                       |
+| `separators`                        | `list[str]`                    | `RecursiveCharacterTextSplitter`                             | Иерархия разделителей. Берётся первый, который позволяет уложиться в `chunk_size`.                                 |
+| `separator`                         | `str`                          | `CharacterTextSplitter`, `SpacyTextSplitter`                 | Один символ или строка, по которой делить текст.                                                                   |
+| `tokens_per_chunk`                  | `int > 0` (LLM‑токены)         | `TokenTextSplitter`, `SentenceTransformersTokenTextSplitter` | Аналог `chunk_size`, но в токенах. Полезно для строгого контроля лимита модели.                                    |
+| `tokenizer`                         | Callable                       | `TokenTextSplitter`                                          | Функция, считающая токены так же, как целевая модель (`tiktoken.encoding_for_model`).                              |
+| `model_name`                        | `str`                          | `SentenceTransformersTokenTextSplitter`                      | Название sentence‑transformers модели, у которой берётся токенайзер.                                               |
+| `pipeline`                          | `str`                          | `SpacyTextSplitter`                                          | Имя spaCy‑модели (`en_core_web_sm`, `ru_core_news_sm` ит.д.), определяет язык разбивки предложений.                |
+| `language`                          | `str`                          | `NLTKTextSplitter`                                           | Код языка для токенизации NLTK (`english`, `russian`, `german`).                                                   |
+| `headers_to_split_on`               | `list`                         | `MarkdownHeaderTextSplitter`, `HTMLHeaderTextSplitter`       | Перечень заголовков/уровней, по которым разбивать (пример: `[(1, "#"), (2, "##")]`).                               |
+| `return_each_element`               | `bool`                         | `HTMLHeaderTextSplitter`                                     | Если `true`, каждый HTML‑элемент возвращается отдельным чанком.                                                    |
+| `markdown_separators`               | `dict[str,str]`                | `MarkdownTextSplitter`                                       | Кастомные разделители MD (`{"heading": "#", "list": "-"}`).                                                        |
+| `min_chunk_size` / `max_chunk_size` | `int`                          | `RecursiveJsonSplitter`                                      | Нижняя и верхняя границы длины чанка при обходе JSON‑дерева.                                                       |
+| `framework`                         | `"react"`, `"vue"`, `"svelte"` | `JSFrameworkTextSplitter`                                    | Уточняет синтаксис для более точной сегментации JSX/SFC.                                                           |
+| `line_split`                        | `bool`                         | `PythonCodeTextSplitter`                                     | Если `true` (по умолч.), режет по отступам кода; `false` — по символам.                                            |
+
+> **Совет:** при использовании токенных сплиттеров обязательно указывайте тот же токенайзер, что и для генерации эмбеддингов / запросов к модели, иначе могут появиться off‑by‑one ошибки в длине контекста.
+
+---
+
 
 ## Эмбеддинги
 

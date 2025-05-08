@@ -14,3 +14,4 @@ sentence-transformers
 langchain-huggingface
 unstructured[all-docs]
 langchain-unstructured
+langchain-text-splitters[markdown,spacy,nltk,konlpy]
