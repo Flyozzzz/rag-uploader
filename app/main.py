@@ -74,11 +74,9 @@ async def rag_query(config: str = Form(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Bad config: {e}"})
 
-    # 1. build shared components
     es_client  = build_es_client(cfg)
     embeddings = build_embeddings(cfg)
 
-    # 2. wrap existing index (no writes)
     vs = ElasticsearchStore(
         index_name   = cfg.index_name,
         es_connection    = es_client,
@@ -87,13 +85,11 @@ async def rag_query(config: str = Form(...)):
 
     retriever = build_retriever(vs, cfg)
 
-    # 3. fetch docs (LangChain ≥0.1 uses .invoke)
     try:
         docs: list[Document] = retriever.invoke(cfg.query)
     except AttributeError:
         docs = retriever.get_relevant_documents(cfg.query)
 
-    # 4. JSON‑serialisable response
     return {
         "query": cfg.query,
         "matches": [
